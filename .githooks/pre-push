@@ -1,0 +1,44 @@
+#!/bin/bash
+
+# Pre-push hook：防止直接推送到 main 或 master 分支
+# 這個 hook 與 git-secrets 的 pre-commit hook 互補
+# - git-secrets: 防止提交機敏資訊
+# - pre-push: 強制使用 Pull Request 流程
+
+# 顏色定義
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# 從 stdin 讀取推送資訊
+# -r flag: 防止反斜線被解釋為轉義字元
+# 使用 _ 前綴表示有意不使用的變數（符合 ShellCheck 建議）
+while read -r _local_ref _local_sha remote_ref _remote_sha
+do
+  # 檢查是否推送到 main 或 master 分支
+  if [ "$remote_ref" = "refs/heads/main" ] || [ "$remote_ref" = "refs/heads/master" ]; then
+    echo ""
+    echo "${RED}❌ ============================================${NC}"
+    echo "${RED}❌  禁止直接推送到 protected 分支！${NC}"
+    echo "${RED}❌ ============================================${NC}"
+    echo ""
+    echo "${BLUE}📋 請使用以下 Pull Request 流程：${NC}"
+    echo "   ${GREEN}1.${NC} git checkout -b feature/your-feature-name"
+    echo "   ${GREEN}2.${NC} 進行開發並 commit"
+    echo "   ${GREEN}3.${NC} git push -u origin feature/your-feature-name"
+    echo "   ${GREEN}4.${NC} 在 GitHub 上建立 Pull Request"
+    echo ""
+    echo "${YELLOW}💡 如果這是緊急修復（緊急情況使用）：${NC}"
+    echo "   git push --no-verify"
+    echo ""
+    echo "${BLUE}🛡️  保護機制：${NC}"
+    echo "   • git-secrets: 防止機敏資訊外洩"
+    echo "   • pre-push: 確保程式碼審查流程"
+    echo ""
+    exit 1
+  fi
+done
+
+exit 0

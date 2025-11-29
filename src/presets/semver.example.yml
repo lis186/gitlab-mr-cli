@@ -1,0 +1,171 @@
+# Semantic Versioning 發布配置範例
+# 適用於使用 Semantic Versioning 的專案
+# 標籤格式: {MAJOR}.{MINOR}.{PATCH}[_{SUFFIX}]
+# 範例標籤: 1.0.0, 1.2.3, 2.0.0_beta, 1.5.0_rc1
+
+name: "semver-config"
+description: "Semantic Versioning 配置範例"
+
+# 標籤格式定義
+tag:
+  # 正規表示式: 匹配標準 SemVer 格式（支援可選的 suffix）
+  # 範例: 1.2.3 → major=1, minor=2, patch=3, suffix=null
+  # 範例: 2.0.0_beta → major=2, minor=0, patch=0, suffix=beta
+  pattern: "^(\\d+)\\.(\\d+)\\.(\\d+)(?:_(.+))?$"
+
+  # 擷取群組對應關係
+  groups:
+    major: 1     # 第一個 () 擷取主版本號（破壞性變更）
+    minor: 2     # 第二個 () 擷取次版本號（新功能）
+    patch: 3     # 第三個 () 擷取修補版本號（bug 修復）
+    suffix: 4    # 第四個 () 擷取後綴（beta, rc, alpha 等）
+
+# 發布類型定義
+release_types:
+  # 1. 主版本發布（Major Release）
+  major:
+    name: "主版本發布"
+    description: "包含破壞性變更的重大版本（major 變更 + minor=0 + patch=0）"
+    priority: 1
+    rules:
+      - field: "minor"
+        operator: "equals"
+        value: 0
+      - field: "patch"
+        operator: "equals"
+        value: 0
+      - field: "suffix"
+        operator: "is_empty"    # 不包含後綴（正式版）
+
+  # 2. 次版本發布（Minor Release）
+  minor:
+    name: "次版本發布"
+    description: "新增功能但向後相容（minor 變更 + patch=0）"
+    priority: 2
+    rules:
+      - field: "minor"
+        operator: "changed"     # minor 號有變更
+      - field: "patch"
+        operator: "equals"
+        value: 0
+      - field: "suffix"
+        operator: "is_empty"
+
+  # 3. 修補版本發布（Patch Release）
+  patch:
+    name: "修補版本發布"
+    description: "Bug 修復，不包含新功能（patch 變更）"
+    priority: 3
+    rules:
+      - field: "patch"
+        operator: "changed"     # patch 號有變更
+      - field: "suffix"
+        operator: "is_empty"
+
+  # 4. 測試版本（Beta）
+  beta:
+    name: "測試版本"
+    description: "公開測試版本（包含 beta 後綴）"
+    priority: 4
+    rules:
+      - field: "suffix"
+        operator: "contains_any"
+        value: ["beta", "b"]
+
+  # 5. 發布候選版本（Release Candidate）
+  rc:
+    name: "發布候選版本"
+    description: "正式發布前的最終測試版本（包含 rc 後綴）"
+    priority: 5
+    rules:
+      - field: "suffix"
+        operator: "contains_any"
+        value: ["rc", "release-candidate"]
+
+  # 6. Alpha 版本
+  alpha:
+    name: "Alpha 版本"
+    description: "早期測試版本（包含 alpha 後綴）"
+    priority: 6
+    rules:
+      - field: "suffix"
+        operator: "contains_any"
+        value: ["alpha", "a"]
+
+  # 7. 預設類型
+  regular:
+    name: "一般發布"
+    description: "其他發布"
+    priority: 99
+    rules: []
+
+# 分析設定
+analysis:
+  # 主幹分支名稱
+  default_branch: "main"
+
+  # 健康度閾值設定（根據發布類型不同）
+  thresholds:
+    # MR 數量閾值
+    mr_count:
+      healthy: 40      # ≤40 MR 為健康
+      warning: 80      # 40-80 MR 為警告
+      critical: 80     # >80 MR 為警戒
+
+    # 程式碼變更量閾值
+    loc_changes:
+      healthy: 4000    # ≤4,000 行為健康
+      warning: 8000    # 4,000-8,000 行為警告
+      critical: 8000   # >8,000 行為警戒
+
+    # 發布間隔天數（根據語意化版本，間隔較彈性）
+    release_interval_days:
+      expected: 14     # 預期每 2 週發布 patch 版本
+      tolerance: 7     # 容許誤差 ±7 天（7-21 天視為正常）
+
+    # Code Freeze 天數
+    code_freeze_days:
+      healthy_min: 2   # 健康範圍: 2-5 天
+      healthy_max: 5
+      warning_max: 7   # 警告上限: 7 天
+
+# 預設過濾規則
+default_filters:
+  # 排除開發用標籤
+  exclude_tags:
+    - ".*-snapshot$"   # 排除 snapshot 版本
+    - ".*-dev$"        # 排除 dev 版本
+    - ".*-SNAPSHOT$"   # 排除 Maven SNAPSHOT 版本
+
+# 進階配置（可選）
+advanced:
+  # Major 版本特殊處理
+  major_release:
+    require_longer_freeze: true    # 主版本要求更長的 code freeze
+    freeze_days_min: 7             # 主版本最少 7 天 freeze
+    warning_mr_count: 150          # 主版本允許更多 MR
+
+  # Patch 版本特殊處理
+  patch_release:
+    require_shorter_freeze: true   # Patch 版本要求更短的 freeze
+    freeze_days_max: 2             # Patch 版本最多 2 天 freeze
+    max_mr_count: 20               # Patch 版本應該小批量（≤20 MR）
+
+  # Pre-release 版本排除規則
+  exclude_prerelease_from_metrics: true  # 從主要指標排除 beta/rc/alpha 版本
+
+# SemVer 特定驗證規則（可選）
+validation:
+  # 驗證版本號遞增順序
+  enforce_sequential_increment: true
+
+  # 禁止跳過版本號
+  disallow_version_skip: false
+
+  # 主版本發布必須包含 CHANGELOG
+  major_requires_changelog: true
+
+# 使用範例:
+# npm run release:analyze -- --project "team/project/example" --config semver.example.yml
+# npm run release:analyze -- --project "team/project/example" --exclude-types beta,alpha,rc --config semver.example.yml
+# npm run release:readiness -- --project "team/project/example" --planned-date 2025-11-15 --config semver.example.yml

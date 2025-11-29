@@ -1,0 +1,63 @@
+# 測試配置 - iOS 行動應用專案
+name: "mobile-app-ios-test"
+description: "Acme Corp iOS 專案發布配置（測試用）"
+
+tag:
+  pattern: "^AppStore(\\d{2})\\.(\\d{1,2})\\.(\\d+)$"
+  groups:
+    year: 1
+    month: 2
+    patch: 3
+
+release_types:
+  major:
+    name: "major"
+    description: "正式月度發布"
+    priority: 1
+    evaluate_batch_size: true  # 評估批量健康度（月底集中合併反模式檢測）
+    rules:
+      - field: "patch"
+        operator: "equals"
+        value: 0
+    color: "green"
+
+  hotfix:
+    name: "hotfix"
+    description: "緊急修復版本"
+    priority: 2
+    evaluate_batch_size: false  # 不評估批量（僅統計頻率作為品質指標）
+    rules:
+      - field: "patch"
+        operator: "ends_with"
+        value: 5
+    color: "red"
+
+  minor:
+    name: "minor"
+    description: "小版本更新"
+    priority: 99
+    evaluate_batch_size: false  # 不評估批量（快速回應客戶需求，小批量是好事）
+    rules:
+      - field: "patch"
+        operator: "greater_than"
+        value: 0
+    color: "blue"
+
+analysis:
+  default_branch: "develop"
+  thresholds:
+    mr_count:
+      healthy: 50
+      warning: 100
+      critical: 100
+    loc_changes:
+      healthy: 5000
+      warning: 10000
+      critical: 10000
+    release_interval_days:
+      expected: 30
+      tolerance: 5
+    code_freeze_days:
+      healthy_min: 1
+      healthy_max: 3
+      warning_max: 5

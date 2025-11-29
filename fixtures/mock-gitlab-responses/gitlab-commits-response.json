@@ -1,0 +1,175 @@
+[
+  {
+    "id": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0",
+    "short_id": "a1b2c3d4",
+    "title": "feat: 新增使用者驗證",
+    "author_name": "張開發者",
+    "author_email": "dev@example.com",
+    "authored_date": "2025-10-25T10:30:00.000+08:00",
+    "committer_name": "張開發者",
+    "committer_email": "dev@example.com",
+    "committed_date": "2025-10-25T10:30:00.000+08:00",
+    "created_at": "2025-10-25T10:30:00.000+08:00",
+    "message": "feat: 新增使用者驗證\n\n- 實作 JWT token 產生\n- 新增登入 API 端點",
+    "parent_ids": [
+      "b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1"
+    ],
+    "web_url": "https://gitlab.example.com/group/project/-/commit/a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0"
+  },
+  {
+    "id": "c5d6e7f8g9h0i1j2k3l4m5n6o7p8q9r0s1t2u3v4",
+    "short_id": "c5d6e7f8",
+    "title": "refactor: 重構資料庫連線邏輯",
+    "author_name": "李開發者",
+    "author_email": "lee@example.com",
+    "authored_date": "2025-10-24T14:20:00.000+08:00",
+    "committer_name": "李開發者",
+    "committer_email": "lee@example.com",
+    "committed_date": "2025-10-24T14:20:00.000+08:00",
+    "created_at": "2025-10-24T14:20:00.000+08:00",
+    "message": "refactor: 重構資料庫連線邏輯\n\n改善連線池管理",
+    "parent_ids": [
+      "d6e7f8g9h0i1j2k3l4m5n6o7p8q9r0s1t2u3v4w5"
+    ],
+    "web_url": "https://gitlab.example.com/group/project/-/commit/c5d6e7f8g9h0i1j2k3l4m5n6o7p8q9r0s1t2u3v4"
+  },
+  {
+    "id": "e7f8g9h0i1j2k3l4m5n6o7p8q9r0s1t2u3v4w5x6",
+    "short_id": "e7f8g9h0",
+    "title": "Merge branch 'feature/payment' into 'main'",
+    "author_name": "王開發者",
+    "author_email": "wang@example.com",
+    "authored_date": "2025-10-23T16:45:00.000+08:00",
+    "committer_name": "王開發者",
+    "committer_email": "wang@example.com",
+    "committed_date": "2025-10-23T16:45:00.000+08:00",
+    "created_at": "2025-10-23T16:45:00.000+08:00",
+    "message": "Merge branch 'feature/payment' into 'main'\n\nfeat: 新增支付整合\n\nSee merge request group/project!42",
+    "parent_ids": [
+      "f8g9h0i1j2k3l4m5n6o7p8q9r0s1t2u3v4w5x6y7",
+      "g9h0i1j2k3l4m5n6o7p8q9r0s1t2u3v4w5x6y7z8"
+    ],
+    "web_url": "https://gitlab.example.com/group/project/-/commit/e7f8g9h0i1j2k3l4m5n6o7p8q9r0s1t2u3v4w5x6"
+  },
+  {
+    "id": "h0i1j2k3l4m5n6o7p8q9r0s1t2u3v4w5x6y7z8a9",
+    "short_id": "h0i1j2k3",
+    "title": "fix: 修正登入逾時問題",
+    "author_name": "陳開發者",
+    "author_email": "chen@example.com",
+    "authored_date": "2025-10-22T09:15:00.000+08:00",
+    "committer_name": "陳開發者",
+    "committer_email": "chen@example.com",
+    "committed_date": "2025-10-22T09:15:00.000+08:00",
+    "created_at": "2025-10-22T09:15:00.000+08:00",
+    "message": "fix: 修正登入逾時問題",
+    "parent_ids": [
+      "i1j2k3l4m5n6o7p8q9r0s1t2u3v4w5x6y7z8a9b0"
+    ],
+    "web_url": "https://gitlab.example.com/group/project/-/commit/h0i1j2k3l4m5n6o7p8q9r0s1t2u3v4w5x6y7z8a9"
+  },
+  {
+    "id": "j2k3l4m5n6o7p8q9r0s1t2u3v4w5x6y7z8a9b0c1",
+    "short_id": "j2k3l4m5",
+    "title": "docs: 更新 API 文件",
+    "author_name": "劉開發者",
+    "author_email": "liu@example.com",
+    "authored_date": "2025-10-21T11:00:00.000+08:00",
+    "committer_name": "劉開發者",
+    "committer_email": "liu@example.com",
+    "committed_date": "2025-10-21T11:00:00.000+08:00",
+    "created_at": "2025-10-21T11:00:00.000+08:00",
+    "message": "docs: 更新 API 文件\n\n新增認證端點說明",
+    "parent_ids": [
+      "k3l4m5n6o7p8q9r0s1t2u3v4w5x6y7z8a9b0c1d2"
+    ],
+    "web_url": "https://gitlab.example.com/group/project/-/commit/j2k3l4m5n6o7p8q9r0s1t2u3v4w5x6y7z8a9b0c1"
+  },
+  {
+    "id": "oversized1234567890abcdef1234567890abcdef",
+    "short_id": "oversiz1",
+    "title": "feat: 超大重構 - 完整重寫核心模組",
+    "author_name": "超級開發者",
+    "author_email": "super@example.com",
+    "authored_date": "2025-10-20T08:00:00.000+08:00",
+    "committer_name": "超級開發者",
+    "committer_email": "super@example.com",
+    "committed_date": "2025-10-20T08:00:00.000+08:00",
+    "created_at": "2025-10-20T08:00:00.000+08:00",
+    "message": "feat: 超大重構 - 完整重寫核心模組\n\n⚠️ CRITICAL: 此 commit 超過 1000 LOC\n\n變更內容：\n- 重寫整個認證系統 (500+ LOC)\n- 重構資料庫層 (300+ LOC)\n- 新增快取機制 (200+ LOC)\n- 更新所有測試 (500+ LOC)\n\n這個 commit 應該被拆分成多個小 commits！",
+    "parent_ids": [
+      "k3l4m5n6o7p8q9r0s1t2u3v4w5x6y7z8a9b0c1d2"
+    ],
+    "web_url": "https://gitlab.example.com/group/project/-/commit/oversized1234567890abcdef1234567890abcdef"
+  },
+  {
+    "id": "empty000000000000000000000000000000000000",
+    "short_id": "empty000",
+    "title": "chore: 觸發 CI rebuild",
+    "author_name": "CI Bot",
+    "author_email": "ci@example.com",
+    "authored_date": "2025-10-19T15:30:00.000+08:00",
+    "committer_name": "CI Bot",
+    "committer_email": "ci@example.com",
+    "committed_date": "2025-10-19T15:30:00.000+08:00",
+    "created_at": "2025-10-19T15:30:00.000+08:00",
+    "message": "chore: 觸發 CI rebuild\n\n空 commit 用於觸發 CI pipeline",
+    "parent_ids": [
+      "k3l4m5n6o7p8q9r0s1t2u3v4w5x6y7z8a9b0c1d2"
+    ],
+    "web_url": "https://gitlab.example.com/group/project/-/commit/empty000000000000000000000000000000000000"
+  },
+  {
+    "id": "emoji789012345678901234567890abcdefabcdef",
+    "short_id": "emoji789",
+    "title": "fix: 修復按鈕樣式 bug",
+    "author_name": "UI開發者",
+    "author_email": "ui@example.com",
+    "authored_date": "2025-10-18T13:45:00.000+08:00",
+    "committer_name": "UI開發者",
+    "committer_email": "ui@example.com",
+    "committed_date": "2025-10-18T13:45:00.000+08:00",
+    "created_at": "2025-10-18T13:45:00.000+08:00",
+    "message": "fix: 修復按鈕樣式 bug 🎨✨\n\n🐛 Bug 修復：\n- 修正 primary button 的 hover 效果 ✅\n- 更新 CSS 變數名稱 📝\n- 加入 dark mode 支援 🌙\n\n特殊字元測試：\n- Unicode: 你好世界 🌏\n- Emoji: 🚀💯🎉\n- Symbols: ©®™€£¥\n- Math: ∑∏∫√≈≠±×÷",
+    "parent_ids": [
+      "k3l4m5n6o7p8q9r0s1t2u3v4w5x6y7z8a9b0c1d2"
+    ],
+    "web_url": "https://gitlab.example.com/group/project/-/commit/emoji789012345678901234567890abcdefabcdef"
+  },
+  {
+    "id": "binary12345678901234567890abcdefabcdefabcd",
+    "short_id": "binary12",
+    "title": "chore: 更新品牌 logo 和圖示",
+    "author_name": "設計師",
+    "author_email": "design@example.com",
+    "authored_date": "2025-10-17T10:00:00.000+08:00",
+    "committer_name": "設計師",
+    "committer_email": "design@example.com",
+    "committed_date": "2025-10-17T10:00:00.000+08:00",
+    "created_at": "2025-10-17T10:00:00.000+08:00",
+    "message": "chore: 更新品牌 logo 和圖示\n\n包含多個二進位檔案",
+    "parent_ids": [
+      "k3l4m5n6o7p8q9r0s1t2u3v4w5x6y7z8a9b0c1d2"
+    ],
+    "web_url": "https://gitlab.example.com/group/project/-/commit/binary12345678901234567890abcdefabcdefabcd"
+  },
+  {
+    "id": "merge234567890abcdef1234567890abcdefabcdef",
+    "short_id": "merge234",
+    "title": "Merge branch 'feature/redesign' into 'develop'",
+    "author_name": "Tech Lead",
+    "author_email": "lead@example.com",
+    "authored_date": "2025-10-16T17:00:00.000+08:00",
+    "committer_name": "Tech Lead",
+    "committer_email": "lead@example.com",
+    "committed_date": "2025-10-16T17:00:00.000+08:00",
+    "created_at": "2025-10-16T17:00:00.000+08:00",
+    "message": "Merge branch 'feature/redesign' into 'develop'\n\nfeat: UI 大改版\n\n包含 50+ 個 commits 的大型功能分支\n\nSee merge request group/project!123",
+    "parent_ids": [
+      "f8g9h0i1j2k3l4m5n6o7p8q9r0s1t2u3v4w5x6y7",
+      "g9h0i1j2k3l4m5n6o7p8q9r0s1t2u3v4w5x6y7z8",
+      "h0i1j2k3l4m5n6o7p8q9r0s1t2u3v4w5x6y7z8a9"
+    ],
+    "web_url": "https://gitlab.example.com/group/project/-/commit/merge234567890abcdef1234567890abcdefabcdef"
+  }
+]

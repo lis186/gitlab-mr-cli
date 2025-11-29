@@ -1,0 +1,105 @@
+{
+  "oversized1234567890abcdef1234567890abcdef": [
+    {
+      "old_path": "src/auth/authentication.ts",
+      "new_path": "src/auth/authentication.ts",
+      "a_mode": "100644",
+      "b_mode": "100644",
+      "new_file": false,
+      "renamed_file": false,
+      "deleted_file": false,
+      "diff": "@@ -1,50 +1,550 @@\n-// Old authentication implementation (500 lines deleted)\n+// New authentication implementation (500 lines added)\n+// This is a massive rewrite simulating 500+ LOC changes\n+// ...(repeated to simulate large diff)",
+      "binary": false,
+      "generated_file": false
+    },
+    {
+      "old_path": "src/database/connection.ts",
+      "new_path": "src/database/connection.ts",
+      "a_mode": "100644",
+      "b_mode": "100644",
+      "new_file": false,
+      "renamed_file": false,
+      "deleted_file": false,
+      "diff": "@@ -1,100 +1,400 @@\n-// Old database layer (300 lines deleted)\n+// New database layer (300 lines added)\n+// Simulating 300+ LOC changes",
+      "binary": false,
+      "generated_file": false
+    },
+    {
+      "old_path": "src/cache/manager.ts",
+      "new_path": "src/cache/manager.ts",
+      "a_mode": "0",
+      "b_mode": "100644",
+      "new_file": true,
+      "renamed_file": false,
+      "deleted_file": false,
+      "diff": "@@ -0,0 +1,200 @@\n+// New cache manager (200 lines added)\n+// Simulating 200+ LOC new file",
+      "binary": false,
+      "generated_file": false
+    },
+    {
+      "old_path": "tests/auth.test.ts",
+      "new_path": "tests/auth.test.ts",
+      "a_mode": "100644",
+      "b_mode": "100644",
+      "new_file": false,
+      "renamed_file": false,
+      "deleted_file": false,
+      "diff": "@@ -50,50 +50,550 @@\n-// Old tests (500 lines deleted)\n+// New tests (500 lines added)\n+// Simulating 500+ LOC test changes",
+      "binary": false,
+      "generated_file": false
+    }
+  ],
+  "empty000000000000000000000000000000000000": [],
+  "emoji789012345678901234567890abcdefabcdef": [
+    {
+      "old_path": "src/components/Button.css",
+      "new_path": "src/components/Button.css",
+      "a_mode": "100644",
+      "b_mode": "100644",
+      "new_file": false,
+      "renamed_file": false,
+      "deleted_file": false,
+      "diff": "@@ -10,5 +10,15 @@\n .primary-button {\n   background: var(--primary-color);\n }\n+\n+.primary-button:hover {\n+  background: var(--primary-hover);\n+}\n+\n+@media (prefers-color-scheme: dark) {\n+  .primary-button {\n+    background: var(--primary-dark);\n+  }\n+}",
+      "binary": false,
+      "generated_file": false
+    }
+  ],
+  "binary12345678901234567890abcdefabcdefabcd": [
+    {
+      "old_path": "public/logo.png",
+      "new_path": "public/logo.png",
+      "a_mode": "100644",
+      "b_mode": "100644",
+      "new_file": false,
+      "renamed_file": false,
+      "deleted_file": false,
+      "diff": "Binary files differ",
+      "binary": true,
+      "generated_file": false
+    },
+    {
+      "old_path": "public/favicon.ico",
+      "new_path": "public/favicon.ico",
+      "a_mode": "100644",
+      "b_mode": "100644",
+      "new_file": false,
+      "renamed_file": false,
+      "deleted_file": false,
+      "diff": "Binary files differ",
+      "binary": true,
+      "generated_file": false
+    },
+    {
+      "old_path": "assets/images/hero.jpg",
+      "new_path": "assets/images/hero.jpg",
+      "a_mode": "0",
+      "b_mode": "100644",
+      "new_file": true,
+      "renamed_file": false,
+      "deleted_file": false,
+      "diff": "Binary files differ",
+      "binary": true,
+      "generated_file": false
+    }
+  ]
+}

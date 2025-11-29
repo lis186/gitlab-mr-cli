@@ -1,0 +1,155 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor directories and files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Temporary files
+tmp/
+temp/
+
+# GitLab Analysis Configuration (開源安全 - 避免提交公司資訊)
+# 所有實際配置檔必須由使用者在本地建立
+.gitlab-analysis.yml
+.gitlab-analysis.*.yml
+.gitlab-analysis/
+
+# 保留範例檔案（可提交）
+!**/*.example.yml
+!**/examples/**
+memory-test-output.txt
+
+# Test files and outputs
+test-output.log
+test-*.log
+.manual-test*.md
+
+# Development history and AI assistant artifacts
+.specstory/
+
+# Analysis Scripts and Results
+analysis-scripts/
+*.cjs
+*.analysis.json
+*.analysis.md
+*-timeline-*.json
+*-diff-stats.json
+*-final-analysis-*.json
+*-segments-*.json
+*-sequence*.json
+*-ai-human-*.json
+*-exclude-*.json
+*-impact-*.json
+classified-data*.json
+control-group-*.json
+cycle-time-*.json
+cycle-time-*.md
+matching-report-*.md
+monthly-*.json
+robust-statistics-*.json
+eda-report.md
+fetch-diffs-log.txt
+
+# Investigation artifacts
+draft-mr-data/
+*-complete.json
+*-anomaly-*.json
+*-investigation.txt
+*-investigation.json
+*-coverage*.json
+*-distribution*.json
+*-pickup-time*.json
+*-review-*.json
+borderline-*.json
+missed-review-*.json
+outlier-*.json
+should-review-*.txt
+true-*.json
+
+# Temporary analysis outputs
+*-analysis-output*.txt
+*-analysis.txt
+*-analysis.json
+*-workflow-analysis.txt
+*-timing-analysis.txt
+segments-*.txt
+final-results/
+
+# Analysis documentation (temporary - root directory only)
+/AI_*.md
+/ANDROID_*.md
+/AVAILABLE_*.md
+/BEFORE_*.md
+/CHANGELOG_*.md
+/CI_*.md
+/CLI_*.md
+/COMPREHENSIVE_*.md
+/CONTENT_*.md
+/DATA_*.md
+/DRAFT_*.md
+/EXECUTIVE_*.md
+/FINAL_*.md
+/IMPORTANT_*.md
+/INDEX.md
+/IOS_*.md
+/MR_*.md
+/NO_*.md
+/REPORT_*.md
+/ROBUST_*.md
+/THREE_*.md
+/TIME_*.md
+/WORKFLOW_*.md
+/WORK_*.md
+/COMPLETE_*.md
+/EVENT_*.md
+/FEEDBACK.md
+/FILES_TO_DELETE.md
+/GITLAB_*.md
+/HOW_TO_*.md
+/IMPLEMENTATION_*.md
+/INCLUDE_*.md
+/LINEARB_*.md
+/LINES_*.md
+/OUTLIER_*.md
+/PARAMETER_*.md
+/POST_*.md
+/PR_*.md
+/REPORTS_*.md
+# Investigation artifacts (investigations/ directory has been removed, keeping patterns for legacy cleanup)
+/REVIEW_INVESTIGATION_*.md
+/TEST_INVESTIGATION_*.md
+/TIMELINE_INVESTIGATION_*.md
+/CLAUDE_INVESTIGATION_*.md
+
+# Shell scripts (temporary)
+cleanup-temp-files.sh
+monitor-progress.sh
+run-all-analysis.sh

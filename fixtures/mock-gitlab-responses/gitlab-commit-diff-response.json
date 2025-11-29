@@ -1,0 +1,62 @@
+[
+  {
+    "old_path": "src/auth/login.ts",
+    "new_path": "src/auth/login.ts",
+    "a_mode": "100644",
+    "b_mode": "100644",
+    "new_file": false,
+    "renamed_file": false,
+    "deleted_file": false,
+    "diff": "@@ -15,6 +15,31 @@ import { User } from '../models';\n \n export class AuthService {\n   constructor(private userRepository: UserRepository) {}\n+\n+  /**\n+   * 使用者登入\n+   * @param email - 使用者電子郵件\n+   * @param password - 使用者密碼\n+   * @returns JWT token\n+   */\n+  async login(email: string, password: string): Promise<string> {\n+    const user = await this.userRepository.findByEmail(email);\n+    \n+    if (!user) {\n+      throw new Error('User not found');\n+    }\n+    \n+    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);\n+    \n+    if (!isPasswordValid) {\n+      throw new Error('Invalid password');\n+    }\n+    \n+    const token = jwt.sign(\n+      { userId: user.id, email: user.email },\n+      process.env.JWT_SECRET,\n+      { expiresIn: '24h' }\n+    );\n+    \n+    return token;\n+  }\n }",
+    "binary": false,
+    "generated_file": false
+  },
+  {
+    "old_path": "src/utils/token.ts",
+    "new_path": "src/utils/token.ts",
+    "a_mode": "0",
+    "b_mode": "100644",
+    "new_file": true,
+    "renamed_file": false,
+    "deleted_file": false,
+    "diff": "@@ -0,0 +1,15 @@\n+import jwt from 'jsonwebtoken';\n+\n+/**\n+ * 產生 JWT token\n+ * @param userId - 使用者 ID\n+ * @returns JWT token 字串\n+ */\n+export function generateToken(userId: string): string {\n+  return jwt.sign(\n+    { userId },\n+    process.env.JWT_SECRET || 'default-secret',\n+    { expiresIn: '24h' }\n+  );\n+}\n+",
+    "binary": false,
+    "generated_file": false
+  },
+  {
+    "old_path": "src/models/user.ts",
+    "new_path": "src/models/user.ts",
+    "a_mode": "100644",
+    "b_mode": "100644",
+    "new_file": false,
+    "renamed_file": false,
+    "deleted_file": false,
+    "diff": "@@ -1,8 +1,13 @@\n export interface User {\n   id: string;\n   email: string;\n   name: string;\n+  passwordHash: string;\n   createdAt: Date;\n   updatedAt: Date;\n }\n+\n+export interface UserRepository {\n+  findByEmail(email: string): Promise<User | null>;\n+  create(user: Omit<User, 'id' | 'createdAt' | 'updatedAt'>): Promise<User>;\n+}",
+    "binary": false,
+    "generated_file": false
+  },
+  {
+    "old_path": "public/logo.png",
+    "new_path": "public/logo.png",
+    "a_mode": "100644",
+    "b_mode": "100644",
+    "new_file": false,
+    "renamed_file": false,
+    "deleted_file": false,
+    "diff": "Binary files differ",
+    "binary": true,
+    "generated_file": false
+  },
+  {
+    "old_path": "tests/auth.test.ts",
+    "new_path": "tests/auth.test.ts",
+    "a_mode": "100644",
+    "b_mode": "100644",
+    "new_file": false,
+    "renamed_file": false,
+    "deleted_file": false,
+    "diff": "@@ -10,4 +10,28 @@ describe('AuthService', () => {\n     expect(authService).toBeDefined();\n   });\n \n+  describe('login', () => {\n+    it('should return token for valid credentials', async () => {\n+      const mockUser = {\n+        id: '123',\n+        email: 'test@example.com',\n+        name: 'Test User',\n+        passwordHash: await bcrypt.hash('password123', 10),\n+        createdAt: new Date(),\n+        updatedAt: new Date(),\n+      };\n+      \n+      userRepository.findByEmail.mockResolvedValue(mockUser);\n+      \n+      const token = await authService.login('test@example.com', 'password123');\n+      \n+      expect(token).toBeDefined();\n+      expect(typeof token).toBe('string');\n+    });\n+    \n+    it('should throw error for invalid email', async () => {\n+      userRepository.findByEmail.mockResolvedValue(null);\n+      \n+      await expect(authService.login('invalid@example.com', 'password123')).rejects.toThrow('User not found');\n+    });\n+  });\n });",
+    "binary": false,
+    "generated_file": false
+  }
+]

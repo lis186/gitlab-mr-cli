@@ -1,0 +1,113 @@
+# 日期格式發布配置範例
+# 適用於使用日期格式的專案
+# 標籤格式: rel-{YYYYMMDD}-{序號}
+# 範例標籤: rel-20251015-1, rel-20251015-2, rel-20251016-1
+
+name: "date-based-config"
+description: "日期格式發布配置範例"
+
+# 標籤格式定義
+tag:
+  # 正規表示式: 匹配 rel- 開頭的日期格式標籤
+  # 範例: rel-20251015-1 → 年份=2025, 月份=10, 日期=15, 序號=1
+  pattern: "^rel-(\\d{4})(\\d{2})(\\d{2})-(\\d+)$"
+
+  # 擷取群組對應關係
+  groups:
+    year: 1       # 第一個 () 擷取年份（YYYY 格式）
+    month: 2      # 第二個 () 擷取月份（01-12）
+    day: 3        # 第三個 () 擷取日期（01-31）
+    sequence: 4   # 第四個 () 擷取序號（同一天的第 N 個發布）
+
+# 發布類型定義
+release_types:
+  # 1. 正式發布（每日第一個發布）
+  major:
+    name: "正式日度發布"
+    description: "每日第一個正式發布（序號 = 1）"
+    priority: 1
+    rules:
+      - field: "sequence"       # 判斷序號欄位
+        operator: "equals"      # 運算子: 等於
+        value: 1                # 序號為 1
+
+  # 2. 緊急修復版本
+  hotfix:
+    name: "緊急修復版本"
+    description: "當日第二個以上的發布（序號 ≥ 2），通常為緊急修復"
+    priority: 2
+    rules:
+      - field: "sequence"
+        operator: "greater_than"  # 運算子: 大於
+        value: 1                  # 序號大於 1
+
+  # 3. 週末發布（特殊處理）
+  weekend:
+    name: "週末發布"
+    description: "週末進行的發布（需手動標記或使用 tag_message）"
+    priority: 3
+    rules:
+      - field: "tag_message"
+        operator: "contains_any"
+        value: ["weekend", "週末", "假日"]
+
+  # 4. 預設類型
+  regular:
+    name: "一般發布"
+    description: "其他發布"
+    priority: 99
+    rules: []
+
+# 分析設定
+analysis:
+  # 主幹分支名稱
+  default_branch: "main"
+
+  # 健康度閾值設定
+  thresholds:
+    # MR 數量閾值（日度發布通常批量較小）
+    mr_count:
+      healthy: 20      # ≤20 MR 為健康（日度發布建議小批量）
+      warning: 50      # 20-50 MR 為警告
+      critical: 50     # >50 MR 為警戒
+
+    # 程式碼變更量閾值
+    loc_changes:
+      healthy: 2000    # ≤2,000 行為健康（日度發布建議小變更）
+      warning: 5000    # 2,000-5,000 行為警告
+      critical: 5000   # >5,000 行為警戒
+
+    # 發布間隔天數
+    release_interval_days:
+      expected: 1      # 預期每日發布
+      tolerance: 0     # 不容許誤差（嚴格日度發布）
+
+    # Code Freeze 天數
+    code_freeze_days:
+      healthy_min: 0   # 健康範圍: 0-1 天（日度發布不需要長 freeze）
+      healthy_max: 1
+      warning_max: 2   # 警告上限: 2 天
+
+# 預設過濾規則
+default_filters:
+  # 排除測試用標籤
+  exclude_tags:
+    - ".*-test$"       # 排除以 -test 結尾的標籤
+    - ".*-dev$"        # 排除以 -dev 結尾的標籤
+    - ".*-staging$"    # 排除以 -staging 結尾的標籤
+
+# 進階配置（可選）
+advanced:
+  # 整合頻率分析：日度發布應該更頻繁
+  integration_analysis:
+    expected_daily_merges: 5     # 預期每日合併 5 次以上
+    detect_weekend_pattern: true # 偵測是否在週末發布（反模式）
+
+  # 主幹可部署性：日度發布要求更高
+  trunk_health:
+    min_success_rate: 0.98       # 最低 98% 成功率
+    max_mttr_hours: 0.5          # 最長修復時間 0.5 小時
+
+# 使用範例:
+# npm run release:analyze -- --project "example/design-system" --config date-based.example.yml
+# npm run release:trends -- --project "example/design-system" --months 3 --config date-based.example.yml

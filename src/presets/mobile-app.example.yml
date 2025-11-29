@@ -1,0 +1,110 @@
+# 行動應用程式發布配置範例
+# 適用於使用年月版本號的 iOS/Android 專案
+# 標籤格式: AppStore{YY}.{MONTH}.{PATCH} 或 v{YY}.{MONTH}.{PATCH}
+# 範例標籤: AppStore25.10.0, AppStore25.10.5, v25.9.0
+
+name: "mobile-app-config"
+description: "行動應用程式年月版本號配置範例"
+
+# 標籤格式定義
+tag:
+  # 正規表示式: 匹配 AppStore 或 v 開頭的年月版本號
+  # 範例: AppStore25.10.0 → 年份=25, 月份=10, patch=0
+  pattern: "^(?:AppStore|v)(\\d{2})\\.(\\d{1,2})\\.(\\d+)$"
+
+  # 擷取群組對應關係（數字代表 regex 中的群組編號）
+  groups:
+    year: 1      # 第一個 () 擷取的是年份（YY 格式）
+    month: 2     # 第二個 () 擷取的是月份（1-12）
+    patch: 3     # 第三個 () 擷取的是 patch 號（0, 5, 10, ...）
+
+# 發布類型定義
+release_types:
+  # 1. 正式月度發布（最高優先級）
+  major:
+    name: "正式月度發布"
+    description: "每月固定發布到 App Store / Google Play（patch = 0）"
+    priority: 1
+    rules:
+      - field: "patch"          # 判斷欄位
+        operator: "equals"      # 運算子: 等於
+        value: 0                # patch 號為 0
+
+  # 2. 緊急修復版本
+  hotfix:
+    name: "緊急修復版本"
+    description: "緊急 bug 修復，patch 尾數為 5（如 AppStore25.10.5, AppStore25.10.15）"
+    priority: 2
+    rules:
+      - field: "patch"
+        operator: "ends_with"   # 運算子: 尾數等於
+        value: 5                # patch 尾數為 5
+
+  # 3. 客戶特版
+  custom:
+    name: "客戶特版"
+    description: "特定客戶的定制版本（標籤訊息包含特定關鍵字）"
+    priority: 3
+    rules:
+      - field: "tag_message"              # 判斷標籤訊息內容
+        operator: "contains_any"          # 運算子: 包含任一關鍵字
+        value: ["特版", "Adidas", "寶雅", "客製化"]  # 關鍵字清單
+
+  # 4. 測試版本
+  test:
+    name: "測試版本"
+    description: "內部測試版本（patch 尾數為 9）"
+    priority: 4
+    rules:
+      - field: "patch"
+        operator: "ends_with"
+        value: 9
+
+  # 5. 小版本更新（預設類型，最低優先級）
+  minor:
+    name: "小版本更新"
+    description: "其他小幅更新（不符合以上規則的版本）"
+    priority: 99
+    rules: []  # 空規則表示「符合所有未分類的版本」
+
+# 分析設定
+analysis:
+  # 主幹分支名稱（用於可部署性分析）
+  default_branch: "develop"
+
+  # 健康度閾值設定
+  thresholds:
+    # MR 數量閾值
+    mr_count:
+      healthy: 50      # ≤50 MR 為健康
+      warning: 100     # 50-100 MR 為警告（需注意）
+      critical: 100    # >100 MR 為警戒（風險高）
+
+    # 程式碼變更量閾值（Lines of Code）
+    loc_changes:
+      healthy: 5000    # ≤5,000 行為健康
+      warning: 10000   # 5,000-10,000 行為警告
+      critical: 10000  # >10,000 行為警戒
+
+    # 發布間隔天數
+    release_interval_days:
+      expected: 30     # 預期每月發布（30 天）
+      tolerance: 5     # 容許誤差 ±5 天（25-35 天視為正常）
+
+    # Code Freeze 天數（發布前凍結開發期間）
+    code_freeze_days:
+      healthy_min: 1   # 健康範圍: 1-3 天
+      healthy_max: 3
+      warning_max: 5   # 警告上限: 5 天（超過表示凍結過長）
+
+# 預設過濾規則（可選）
+default_filters:
+  # 排除測試用標籤（避免干擾分析）
+  exclude_tags:
+    - ".*_test$"       # 排除以 _test 結尾的標籤
+    - ".*_testwebp$"   # 排除以 _testwebp 結尾的標籤
+    - ".*_dev$"        # 排除以 _dev 結尾的標籤
+
+# 使用範例:
+# npm run release:analyze -- --project "example/mobile-app" --config mobile-app.example.yml
+# npm run release:trunk-health -- --project "example/mobile-app" --config mobile-app.example.yml
