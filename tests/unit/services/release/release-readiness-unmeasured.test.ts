@@ -43,7 +43,7 @@ describe('analyzeReadiness 未測量發布', () => {
 
   it('無前一個標籤的 major 不進凍結期評估，也不產生假 critical', () => {
     const releases: Release[] = [
-      makeRelease({ tag: 'AppStore26.7.0', freeze_days: 2, previous_release_tag: 'AppStore26.6.0' }),
+      makeRelease({ tag: 'AppStore26.7.0', freeze_days: 2, mr_count: 4, previous_release_tag: 'AppStore26.6.0' }),
       // 最舊的發布：無前序，freeze_days 的 0 是合成值
       makeRelease({ tag: 'AppStore26.6.0', freeze_days: 0, health_level: null }),
     ]
@@ -59,9 +59,12 @@ describe('analyzeReadiness 未測量發布', () => {
   it('有前一個標籤而凍結期真的是 0 天時，仍然要報 critical', () => {
     // 這條守住修法的精確度：判斷依據是「有沒有測量基準」，
     // 不是「freeze_days 等不等於 0」。若誤改成後者，本測試會紅。
+    //
+    // mr_count 必須 > 0：真正的當天發布代表有 MR 在打標籤當天合併，
+    // 0 筆 MR 的 0 天是合成值而非實測值（見上一條測試）。
     const releases: Release[] = [
-      makeRelease({ tag: 'AppStore26.7.0', freeze_days: 0, previous_release_tag: 'AppStore26.6.0' }),
-      makeRelease({ tag: 'AppStore26.6.1', freeze_days: 2, previous_release_tag: 'AppStore26.6.0' }),
+      makeRelease({ tag: 'AppStore26.7.0', freeze_days: 0, mr_count: 5, previous_release_tag: 'AppStore26.6.0' }),
+      makeRelease({ tag: 'AppStore26.6.1', freeze_days: 2, mr_count: 3, previous_release_tag: 'AppStore26.6.0' }),
     ]
 
     const result = makeAnalyzer().analyzeReadiness(releases)
@@ -71,10 +74,26 @@ describe('analyzeReadiness 未測量發布', () => {
     expect(result.summary.recommendation).toContain('當天發布')
   })
 
+  it('有前一個標籤但區間內 0 筆 MR 時也不得評估（重打標籤／查詢失敗）', () => {
+    // lastMergeDate 只在查到 MR 時才被覆寫，所以 0 筆 MR 的 freeze_days
+    // 同樣是合成的 0。守衛若只看 previous_release_tag 會漏掉這條路徑。
+    const releases: Release[] = [
+      makeRelease({ tag: 'AppStore26.7.0', freeze_days: 2, mr_count: 4, previous_release_tag: 'AppStore26.6.0' }),
+      makeRelease({ tag: 'AppStore26.6.1', freeze_days: 0, mr_count: 0, previous_release_tag: 'AppStore26.6.0' }),
+    ]
+
+    const result = makeAnalyzer().analyzeReadiness(releases)
+
+    expect(result.freezePeriodAssessment).toHaveLength(1)
+    expect(result.freezePeriodAssessment[0]?.release.tag).toBe('AppStore26.7.0')
+    expect(result.summary.criticalCount).toBe(0)
+    expect(result.summary.recommendation).not.toContain('當天發布')
+  })
+
   it('平均凍結期不把合成的 0 算進分子或分母', () => {
     const releases: Release[] = [
-      makeRelease({ tag: 'AppStore26.7.0', freeze_days: 2, previous_release_tag: 'AppStore26.6.0' }),
-      makeRelease({ tag: 'AppStore26.6.0', freeze_days: 3, previous_release_tag: 'AppStore26.5.0' }),
+      makeRelease({ tag: 'AppStore26.7.0', freeze_days: 2, mr_count: 4, previous_release_tag: 'AppStore26.6.0' }),
+      makeRelease({ tag: 'AppStore26.6.0', freeze_days: 3, mr_count: 6, previous_release_tag: 'AppStore26.5.0' }),
       makeRelease({ tag: 'AppStore26.5.0', freeze_days: 0, health_level: null }),
     ]
 
@@ -101,8 +120,8 @@ describe('analyzeReadiness 未測量發布', () => {
 
   it('非 major 發布維持不評估', () => {
     const releases: Release[] = [
-      makeRelease({ tag: 'AppStore26.7.1', type: 'hotfix', freeze_days: 0, previous_release_tag: 'AppStore26.7.0' }),
-      makeRelease({ tag: 'AppStore26.7.0', freeze_days: 2, previous_release_tag: 'AppStore26.6.0' }),
+      makeRelease({ tag: 'AppStore26.7.1', type: 'hotfix', freeze_days: 0, mr_count: 1, previous_release_tag: 'AppStore26.7.0' }),
+      makeRelease({ tag: 'AppStore26.7.0', freeze_days: 2, mr_count: 4, previous_release_tag: 'AppStore26.6.0' }),
     ]
 
     const result = makeAnalyzer().analyzeReadiness(releases)

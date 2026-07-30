@@ -329,4 +329,37 @@ describe('ReleaseAnalyzer 迴歸（完整流程）', () => {
     expect(oldestInRange!.health_level).not.toBeNull()
     expect(oldestInRange!.previous_release_tag).toBe('AppStore26.5.0')
   })
+
+  /**
+   * MR 列表查詢失敗會回空陣列，而空陣列在下游看起來就是「這段區間沒有 MR」。
+   * 一旦 evaluate_batch_size 真的生效（見本檔第一條測試），0 MR / 0 LOC 就會
+   * 被算成一個有自信的 healthy —— 修好 key/name 混淆反而讓這條路徑更危險。
+   * 這裡要求：release 仍然存在（tag 是事實），但健康度必須是未評估。
+   */
+  it('MR 列表查詢失敗時該發布不得評為健康（降級假 healthy 迴歸）', async () => {
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {})
+    gitlabClient.getMergeRequestsBetweenCommits = vi
+      .fn()
+      .mockRejectedValue(new Error('GitLab 500'))
+
+    const result = await analyzer().analyzeBatchSize({
+      projectId: 'group/project',
+      config: makeConfig(),
+    })
+
+    const major = result.releases.find((r) => r.tag === 'AppStore26.7.0')
+
+    // release 不該消失：標籤存在是事實，只是批量無法測量
+    expect(major).toBeDefined()
+    expect(major!.mr_count).toBe(0)
+    // 若把 listFetchFailed 丟掉，這裡會拿到 'healthy'
+    expect(major!.health_level).toBeNull()
+
+    const warnings = warnSpy.mock.calls.map((c) => String(c[0])).join('\n')
+    expect(warnings).toContain('AppStore26.7.0')
+
+    // 總體也不該因為一筆假 healthy 而樂觀
+    expect(result.metrics.recommendation).not.toContain('健康，維持當前節奏')
+    // wrapApiCall 會用真實延遲重試 3 次（1s + 2s + 3s），超過 vitest 預設 5 秒
+  }, 20000)
 })

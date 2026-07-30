@@ -248,6 +248,24 @@ export class ReleaseAnalyzer {
     projectId?: string;
     useCache?: boolean;
   }): Promise<MergeEvent[]> {
+    return (await this.fetchMergeEvents(options)).events;
+  }
+
+  /**
+   * 取得 MR 列表，並回報列表本身是否取得失敗
+   *
+   * 呼叫端需要區分「這段區間真的沒有 MR」與「查不到所以不知道」：
+   * 兩者都是空陣列，但後者不能用來評健康度或凍結期。
+   *
+   * @private
+   */
+  private async fetchMergeEvents(options: {
+    fromSha: string;
+    toSha: string;
+    targetBranch: string;
+    projectId?: string;
+    useCache?: boolean;
+  }): Promise<{ events: MergeEvent[]; listFetchFailed: boolean }> {
     const { fromSha, toSha, targetBranch, projectId, useCache = true } = options;
 
     const cacheKey = {
@@ -266,7 +284,10 @@ export class ReleaseAnalyzer {
         logger.debug(`MR 列表快取命中: ${fromSha.substring(0, 8)}...${toSha.substring(0, 8)}`);
         // 快取是 JSON，Date 會被存成字串；還原回 Date，
         // 否則下游的 calculateFreezeDays 會對字串呼叫 getTime() 而拋錯
-        return cached.map((mr) => ({ ...mr, merged_at: new Date(mr.merged_at) }));
+        return {
+          events: cached.map((mr) => ({ ...mr, merged_at: new Date(mr.merged_at) })),
+          listFetchFailed: false,
+        };
       }
     }
 
@@ -289,7 +310,9 @@ export class ReleaseAnalyzer {
     ).catch(() => null);
 
     if (mrs === null) {
-      return [];
+      // 空陣列在這裡代表「不知道」而不是「沒有」。回報失敗讓上層把
+      // 這個發布標成未評估，否則 0 MR / 0 LOC 會被算成一個有自信的 healthy。
+      return { events: [], listFetchFailed: true };
     }
 
     // 轉換為 MergeEvent 格式
@@ -328,7 +351,7 @@ export class ReleaseAnalyzer {
       );
     }
 
-    return mergeEvents;
+    return { events: mergeEvents, listFetchFailed: false };
   }
 
   /**
@@ -509,12 +532,18 @@ export class ReleaseAnalyzer {
     // 計算發布類型與健康度
     const releaseType = this.classifyReleaseType(tag, config);
 
-    // 沒有前一個標籤就無法界定 MR 區間（例如查詢範圍內最舊的發布）。
-    // 此時的 0 MR / 0 LOC 是「未測量」而不是「批量很小」，
-    // 評成 healthy 會謊報健康度並拉低總體平均，因此一律不評估。
-    const healthLevel = previousTag
+    // 兩種情況下的 0 MR / 0 LOC 都是「未測量」而不是「批量很小」，
+    // 評成 healthy 會謊報健康度並拉低總體平均，因此一律不評估：
+    //   1. 沒有前一個標籤，無法界定 MR 區間（例如查詢範圍內最舊的發布）
+    //   2. MR 列表查詢失敗，空陣列代表「不知道」而不是「沒有」
+    const measurable = Boolean(previousTag) && !mrStats.listFetchFailed;
+    const healthLevel = measurable
       ? this.calculateHealthLevelIfNeeded(releaseType, mrStats, config)
       : null;
+
+    if (mrStats.listFetchFailed) {
+      logger.warn(`${tag.name} 的 MR 列表取得失敗，該發布標記為未評估`);
+    }
 
     // 計算時間指標
     const timeMetrics = this.calculateTimeMetrics(tagDate, previousTag, mrStats.lastMergeDate);
@@ -554,22 +583,23 @@ export class ReleaseAnalyzer {
     totalDeletions: number;
     totalChanges: number;
     lastMergeDate: Date;
+    listFetchFailed: boolean;
   }> {
     let mrList: string[] = [];
     let totalAdditions = 0;
     let totalDeletions = 0;
     let lastMergeDate = tagDate;
+    let listFetchFailed = false;
 
     if (previousTag) {
-      const mergeEvents = await this.getMergeRequestsBetweenReleases({
-        fromTag: previousTag.name,
-        toTag: tag.name,
+      const { events: mergeEvents, listFetchFailed: failed } = await this.fetchMergeEvents({
         fromSha: previousTag.commit.id,
         toSha: tag.commit.id,
         targetBranch: config.analysis.default_branch,
         projectId,
         useCache,
       });
+      listFetchFailed = failed;
 
       mrList = mergeEvents.map((mr) => mr.mr_iid.toString());
       totalAdditions = mergeEvents.reduce((sum, mr) => sum + mr.loc_additions, 0);
@@ -591,6 +621,7 @@ export class ReleaseAnalyzer {
       totalDeletions,
       totalChanges,
       lastMergeDate,
+      listFetchFailed,
     };
   }
 
@@ -1323,11 +1354,15 @@ export class ReleaseAnalyzer {
         continue;
       }
 
-      // 沒有前一個標籤就無法界定 MR 區間，freeze_days 是合成的 0 而不是實測值
-      //（見 calculateTimeMetrics：lastMergeDate 預設等於 tagDate）。
-      // 拿它評估會被 assessFreezePeriod 判成「當天發布，測試時間不足」critical，
+      // freeze_days 是「最後一次合併」到「打標籤」的天數，而 lastMergeDate
+      // 預設就等於 tagDate（見 calculateTimeMetrics），只有查到 MR 才會被覆寫。
+      // 所以下面兩種情況拿到的 0 都是合成值，不是實測的當天發布：
+      //   1. 沒有前一個標籤，無法界定 MR 區間
+      //   2. 區間內沒有任何 MR —— 可能是重打標籤、從同一個 commit 切標籤，
+      //      或 MR 列表查詢失敗（失敗時同樣是 0 筆）
+      // 兩者都會被 assessFreezePeriod 判成「當天發布，測試時間不足」critical，
       // 對使用者是假警報，因此不評估。
-      if (!release.previous_release_tag) {
+      if (!release.previous_release_tag || release.mr_count === 0) {
         continue;
       }
 

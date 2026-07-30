@@ -63,6 +63,38 @@ describe('GitLabClient.getMergeRequestChanges', () => {
     expect(result).toEqual({ additions: 0, deletions: 0 })
   })
 
+  it('diff 被標記為 collapsed 時應拋錯而非少算行數', async () => {
+    // GitLab 對過大的 patch 會回 collapsed: true 且 diff 為空字串。
+    // 靜默當成 0 行會產生看起來合理的錯數字，所以要明確失敗。
+    vi.spyOn(client, 'getMergeRequestDiffs').mockResolvedValue([
+      { diff: '@@ -1 +1,2 @@\n+kept\n' },
+      { diff: '', collapsed: true },
+    ])
+
+    await expect(client.getMergeRequestChanges(6)).rejects.toThrow(/截斷/)
+  })
+
+  it('diff 被標記為 too_large 時應拋錯', async () => {
+    vi.spyOn(client, 'getMergeRequestDiffs').mockResolvedValue([
+      { diff: '', too_large: true },
+    ])
+
+    await expect(client.getMergeRequestChanges(7)).rejects.toThrow(/截斷/)
+  })
+
+  it('diff 為空但沒有截斷旗標時不得拋錯（二進位檔的合法情形）', async () => {
+    // 二進位檔（圖片、字型）的 diff 合法地是空字串，
+    // 判斷依據必須是旗標而不是「diff 是不是空的」。
+    vi.spyOn(client, 'getMergeRequestDiffs').mockResolvedValue([
+      { diff: '' },
+      { diff: '@@ -1 +1 @@\n+text change\n' },
+    ])
+
+    const result = await client.getMergeRequestChanges(8)
+
+    expect(result).toEqual({ additions: 1, deletions: 0 })
+  })
+
   it('應走 diff 路徑，不得依賴 changes_count', async () => {
     // changes_count 是檔案數，不帶行數資訊；即使它是 "20+"，
     // 行數也只能來自 diff。這裡以「有呼叫 diffs」證明資料來源正確。
