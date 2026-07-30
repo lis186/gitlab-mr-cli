@@ -120,7 +120,12 @@ export default class ReleaseAnalyze extends Command {
     });
 
     logger.debug('開始執行 release:analyze 命令');
-    logger.debug('參數:', JSON.stringify(flags, null, 2));
+    // token 不寫入日誌，只記錄有沒有提供
+    const { token, ...loggableFlags } = flags;
+    logger.debug(
+      '參數:',
+      JSON.stringify({ ...loggableFlags, token: token ? '<redacted>' : undefined }, null, 2)
+    );
 
     // 驗證 token 存在
     if (!flags.token) {
@@ -203,12 +208,21 @@ export default class ReleaseAnalyze extends Command {
           this.log(`Pipeline 歷史天數: ${config.analysis.pipeline_history_days}`);
           this.log(`\n閾值設定:`);
           this.log(`  MR 數量:`);
-          this.log(`    健康: <= ${config.analysis.thresholds.mr_count.healthy}`);
+          this.log(`    健康: < ${config.analysis.thresholds.mr_count.healthy}`);
           this.log(`    警告: <= ${config.analysis.thresholds.mr_count.warning}`);
           this.log(`    危險: > ${config.analysis.thresholds.mr_count.warning}`);
+          if (config.analysis.thresholds.loc_additions) {
+            this.log(`  \n新增行數（生效中，優先於 LOC 變更）:`);
+            this.log(`    健康: < ${config.analysis.thresholds.loc_additions.healthy}`);
+            this.log(`    警告: <= ${config.analysis.thresholds.loc_additions.warning}`);
+            this.log(`    危險: > ${config.analysis.thresholds.loc_additions.warning}`);
+          }
           if (config.analysis.thresholds.loc_changes) {
-            this.log(`  \nLOC 變更:`);
-            this.log(`    健康: <= ${config.analysis.thresholds.loc_changes.healthy}`);
+            const supersededNote = config.analysis.thresholds.loc_additions
+              ? '（未使用：已由新增行數取代）'
+              : '';
+            this.log(`  \nLOC 變更${supersededNote}:`);
+            this.log(`    健康: < ${config.analysis.thresholds.loc_changes.healthy}`);
             this.log(`    警告: <= ${config.analysis.thresholds.loc_changes.warning}`);
             this.log(`    危險: > ${config.analysis.thresholds.loc_changes.warning}`);
           }
