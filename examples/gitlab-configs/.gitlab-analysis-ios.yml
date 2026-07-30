@@ -50,7 +50,11 @@ analysis:
       healthy: 50
       warning: 100
       critical: 100
-    loc_changes:
+    loc_changes:            # 新增 + 刪除；僅在未設定 loc_additions 時使用
+      healthy: 5000
+      warning: 10000
+      critical: 10000
+    loc_additions:          # 只算新增行數，優先於 loc_changes
       healthy: 5000
       warning: 10000
       critical: 10000

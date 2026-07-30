@@ -195,7 +195,11 @@ analysis:
       healthy: 30    # 小團隊 (< 5 人): 20-30
       warning: 60    # 中團隊 (5-15 人): 40-50
       critical: 100  # 大團隊 (> 15 人): 60-80
-    loc_changes:
+    loc_changes:     # 新增 + 刪除；僅在未設定 loc_additions 時使用
+      healthy: 3000
+      warning: 8000
+      critical: 10000
+    loc_additions:   # 只算新增行數，優先於 loc_changes
       healthy: 3000
       warning: 8000
       critical: 10000
@@ -207,6 +211,14 @@ analysis:
       healthy_max: 3
       warning_max: 5
 ```
+
+### `loc_additions` 與 `loc_changes` 的差別
+
+`loc_changes` 是新增加刪除的總和，所以一次清技術債的大規模重構（例如新增 3,000 行、刪除 6,000 行，加總 9,000）會和一次新增 9,000 行的功能批次得到相同評級——但兩者的風險完全不同。
+
+`loc_additions` 只算新增的行數，因此設定它之後，大規模刪除不會再讓批量指標灌水。兩組都設定時**以 `loc_additions` 為準**，`loc_changes` 會被忽略（`release:analyze --show-config` 會標示哪一組生效中）。
+
+閾值可以先沿用原本 `loc_changes` 的數字：因為新增行數必然不大於「新增 + 刪除」，同一組數字只會讓評級變寬鬆而不會變嚴格，不會讓既有專案在升級後突然被降級。之後再依團隊的實際分佈調整。
 
 ## 常見問題
 
