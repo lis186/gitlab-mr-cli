@@ -115,7 +115,7 @@ analysis:
   default_branch: "develop"     # 主幹分支名稱
   thresholds:
     mr_count:
-      healthy: 50    # ≤50 MR 為健康
+      healthy: 50    # <50 MR 為健康（等於此值算警告）
       warning: 100   # 50-100 MR 為警告
       critical: 100  # >100 MR 為警戒
 ```

@@ -30,6 +30,8 @@ export interface ReleaseAnalysisOutput {
   metrics: {
     average_mr_count: number;
     average_loc_changes: number;
+    /** 平均新增行數；批量健康度優先以此判定 */
+    average_loc_additions?: number;
     level: 'healthy' | 'warning' | 'critical';
     recommendation: string;
   };

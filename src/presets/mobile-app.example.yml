@@ -76,13 +76,13 @@ analysis:
   thresholds:
     # MR 數量閾值
     mr_count:
-      healthy: 50      # ≤50 MR 為健康
+      healthy: 50      # <50 MR 為健康（等於此值算警告）
       warning: 100     # 50-100 MR 為警告（需注意）
       critical: 100    # >100 MR 為警戒（風險高）
 
     # 程式碼變更量閾值（Lines of Code）
     loc_changes:
-      healthy: 5000    # ≤5,000 行為健康
+      healthy: 5000    # <5,000 行為健康（等於此值算警告）
       warning: 10000   # 5,000-10,000 行為警告
       critical: 10000  # >10,000 行為警戒
 

@@ -295,6 +295,7 @@ export default class ReleaseInit extends Command {
             critical: Number(mrWarning),
           },
           loc_changes: template.analysis?.thresholds?.loc_changes,
+          loc_additions: template.analysis?.thresholds?.loc_additions,
           pipeline_success_rate: template.analysis?.thresholds?.pipeline_success_rate,
           mean_time_to_fix_hours: template.analysis?.thresholds?.mean_time_to_fix_hours,
         },
