@@ -302,19 +302,28 @@ export function formatReleaseAnalysis(output: ReleaseAnalysisOutput): string {
   }
 
   // 發布準備度分析
-  if (output.readiness && output.readiness.freezePeriodAssessment.length > 0) {
+  // 沒有任何可評估的發布時仍要印出這一段：analyzer 已經備好「無足夠資料進行評估」
+  // 的說明，整段藏起來會讓使用者不知道它為什麼消失。
+  if (output.readiness) {
     lines.push(chalk.bold.magenta('發布準備度分析（凍結期健康評估）'));
     lines.push('─'.repeat(47));
     lines.push('');
 
     const summary = output.readiness.summary;
+    const assessedCount = output.readiness.freezePeriodAssessment.length;
 
     // 摘要統計
     lines.push(chalk.bold('準備度摘要'));
-    lines.push(`  分析發布數：${output.readiness.freezePeriodAssessment.length} 次`);
-    lines.push(`  平均凍結期：${chalk.cyan(summary.avgFreezeDays.toFixed(1))} 天`);
-    lines.push(`  健康評級：${chalk.green(summary.healthyCount.toString())} 健康 / ${chalk.yellow(summary.warningCount.toString())} 警告 / ${chalk.red(summary.criticalCount.toString())} 危險`);
-    lines.push(`  ${chalk.gray('→')} ${summary.recommendation}`);
+    if (assessedCount === 0) {
+      // 0 筆時不印平均與評級。那些 0 代表「沒有樣本」而不是「量到 0 天 / 0 個健康」，
+      // 印出來會被讀成實測值 —— 只給說明，不給假數字。
+      lines.push(`  ${chalk.gray('→')} ${summary.recommendation}`);
+    } else {
+      lines.push(`  分析發布數：${assessedCount} 次`);
+      lines.push(`  平均凍結期：${chalk.cyan(summary.avgFreezeDays.toFixed(1))} 天`);
+      lines.push(`  健康評級：${chalk.green(summary.healthyCount.toString())} 健康 / ${chalk.yellow(summary.warningCount.toString())} 警告 / ${chalk.red(summary.criticalCount.toString())} 危險`);
+      lines.push(`  ${chalk.gray('→')} ${summary.recommendation}`);
+    }
     lines.push('');
 
     // 個別評估（只顯示警告和危險）
