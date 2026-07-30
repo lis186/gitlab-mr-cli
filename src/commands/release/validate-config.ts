@@ -275,7 +275,7 @@ export default class ReleaseValidateConfig extends Command {
       ],
       [
         'MR 健康閾值',
-        `≤${config.analysis?.thresholds?.mr_count?.healthy || 'N/A'}`,
+        `<${config.analysis?.thresholds?.mr_count?.healthy || 'N/A'}`,
       ],
       [
         'MR 警告閾值',

@@ -67,13 +67,13 @@ analysis:
   thresholds:
     # MR 數量閾值（日度發布通常批量較小）
     mr_count:
-      healthy: 20      # ≤20 MR 為健康（日度發布建議小批量）
+      healthy: 20      # <20 MR 為健康（日度發布建議小批量；等於此值算警告）
       warning: 50      # 20-50 MR 為警告
       critical: 50     # >50 MR 為警戒
 
     # 程式碼變更量閾值
     loc_changes:
-      healthy: 2000    # ≤2,000 行為健康（日度發布建議小變更）
+      healthy: 2000    # <2,000 行為健康（日度發布建議小變更；等於此值算警告）
       warning: 5000    # 2,000-5,000 行為警告
       critical: 5000   # >5,000 行為警戒
 

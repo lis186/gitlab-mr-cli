@@ -44,7 +44,8 @@ export interface JsonRelease {
   loc_changes: number
   interval_days: number | null
   freeze_days: number
-  health_level: 'healthy' | 'warning' | 'critical'
+  /** null 表示未評估（發布類型未啟用批量評估，或找不到前一個標籤而無法界定 MR 區間） */
+  health_level: 'healthy' | 'warning' | 'critical' | null
   previous_release_tag?: string
 }
 
@@ -52,6 +53,8 @@ export interface JsonMetrics {
   batch_size: {
     average_mr_count: number
     average_loc_changes: number
+    /** 平均新增行數；批量健康度優先以此判定 */
+    average_loc_additions?: number
     level: 'healthy' | 'warning' | 'critical'
     recommendation: string
   }

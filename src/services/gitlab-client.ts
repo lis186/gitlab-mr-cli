@@ -2,6 +2,7 @@ import { Gitlab } from '@gitbeaker/rest'
 import { ProjectConfig, ProjectIdentifier } from '../models/project.js'
 import { MergeRequest, fromGitLabAPI } from '../models/merge-request.js'
 import { AppError, ErrorType } from '../models/error.js'
+import { calculateTotalChanges } from '../utils/diff-parser.js'
 
 /**
  * GitLab API 客戶端服務
@@ -737,58 +738,34 @@ export class GitLabClient {
   }
 
   /**
-   * 取得 MR 的變更統計
+   * 取得 MR 的變更統計（行數）
+   *
+   * 從實際 diff 計算，不使用 changes_count —— 該欄位是「變更檔案數」而非行數，
+   * 拿來當行數會得到數量級錯誤的結果。
+   *
+   * GitLab 對 diff 端點有大小限制，被截斷的檔案會帶 collapsed / too_large 且不含
+   * diff 內容。那種情況下算出的行數會偏低，必須拋錯讓上層走降級路徑（不寫快取），
+   * 而不是把它當成正確的小數字。注意二進位檔的 diff 本來就是空的，
+   * 因此判斷依據是這兩個旗標，不是「diff 為空」。
    *
    * @param mrIid - MR IID
    * @param options - 選項
    * @returns 變更統計
+   * @throws 當 diff 被 GitLab 截斷時
    */
   async getMergeRequestChanges(mrIid: number, options?: {
     onWarning?: (message: string) => void;
   }): Promise<{ additions: number; deletions: number }> {
-    return this.executeWithRetry(async () => {
-      const mr = await this.client.MergeRequests.show(
-        this.projectIdentifier,
-        mrIid
+    const diffs = await this.getMergeRequestDiffs(mrIid, options);
+
+    const truncated = diffs.filter((d) => d?.collapsed || d?.too_large);
+    if (truncated.length > 0) {
+      throw new AppError(
+        ErrorType.API_ERROR,
+        `MR #${mrIid} 有 ${truncated.length} 個檔案的 diff 被 GitLab 截斷（collapsed/too_large），行數無法完整計算`
       );
+    }
 
-      // 解析 changes_count（格式："+50 -20" 或數字字串）
-      let additions = 0;
-      let deletions = 0;
-
-      if (mr.changes_count) {
-        const changesStr = String(mr.changes_count);
-        const match = changesStr.match(/\+(\d+)\s*-(\d+)/);
-
-        if (match && match[1] && match[2]) {
-          additions = parseInt(match[1], 10);
-          deletions = parseInt(match[2], 10);
-        } else {
-          // 如果只有總數，假設為新增
-          const total = parseInt(changesStr, 10);
-          if (!isNaN(total)) {
-            additions = total;
-          }
-        }
-      }
-
-      // 如果沒有 changes_count，嘗試從 changes 中計算
-      if (additions === 0 && deletions === 0 && Array.isArray(mr.changes)) {
-        for (const change of mr.changes) {
-          if (change.diff && typeof change.diff === 'string') {
-            const lines = change.diff.split('\n');
-            for (const line of lines) {
-              if (line.startsWith('+') && !line.startsWith('+++')) {
-                additions++;
-              } else if (line.startsWith('-') && !line.startsWith('---')) {
-                deletions++;
-              }
-            }
-          }
-        }
-      }
-
-      return { additions, deletions };
-    }, { onWarning: options?.onWarning });
+    return calculateTotalChanges(diffs);
   }
 }

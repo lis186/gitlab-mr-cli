@@ -32,6 +32,17 @@ const BATCH_PROCESSING_CONSTANTS = {
 } as const;
 
 /**
+ * 快取資料格式版本
+ *
+ * 計入快取鍵，因此遞增此值即讓所有舊快取失效。
+ * 當 LOC 計算方式或 MergeEvent 結構改變時必須遞增，否則升級後
+ * TTL 內仍會沿用舊演算法產生的結果。
+ *
+ * 2: LOC 改為從實際 diff 計算（先前誤用 changes_count，存的其實是變更檔案數）
+ */
+const CACHE_SCHEMA_VERSION = 2;
+
+/**
  * 凍結期評估常數（天數）
  * 用於評估發布準備度的健康程度
  */
@@ -78,8 +89,10 @@ export interface BatchSizeAnalysisResult {
   metrics: {
     /** 平均 MR 數量 */
     average_mr_count: number;
-    /** 平均 LOC 變更 */
+    /** 平均 LOC 變更（additions + deletions） */
     average_loc_changes: number;
+    /** 平均新增行數；批量健康度優先以此判定 */
+    average_loc_additions: number;
     /** 健康度等級 */
     level: 'healthy' | 'warning' | 'critical';
     /** 建議 */
@@ -191,8 +204,17 @@ export class ReleaseAnalyzer {
     onProgress?.(`時間範圍內的標籤: ${filteredByTime.length} 個`);
 
     // 4. 建立發布列表
+    // 傳入完整的 matchedTags 作為前序標籤來源：範圍內最舊的發布，
+    // 其前一個標籤通常落在 since 之前，若只看範圍內就會誤判成無法測量
     onProgress?.('正在分析發布詳細資訊...');
-    const releases = await this.buildReleases(filteredByTime, config, projectId, useCache, onProgress);
+    const releases = await this.buildReleases(
+      filteredByTime,
+      matchedTags,
+      config,
+      projectId,
+      useCache,
+      onProgress
+    );
 
     // 5. 過濾發布類型
     const filteredReleases = this.filterByReleaseTypes(
@@ -226,26 +248,52 @@ export class ReleaseAnalyzer {
     projectId?: string;
     useCache?: boolean;
   }): Promise<MergeEvent[]> {
+    return (await this.fetchMergeEvents(options)).events;
+  }
+
+  /**
+   * 取得 MR 列表，並回報列表本身是否取得失敗
+   *
+   * 呼叫端需要區分「這段區間真的沒有 MR」與「查不到所以不知道」：
+   * 兩者都是空陣列，但後者不能用來評健康度或凍結期。
+   *
+   * @private
+   */
+  private async fetchMergeEvents(options: {
+    fromSha: string;
+    toSha: string;
+    targetBranch: string;
+    projectId?: string;
+    useCache?: boolean;
+  }): Promise<{ events: MergeEvent[]; listFetchFailed: boolean }> {
     const { fromSha, toSha, targetBranch, projectId, useCache = true } = options;
+
+    const cacheKey = {
+      type: 'mr_list',
+      schemaVersion: CACHE_SCHEMA_VERSION,
+      projectId,
+      fromSha,
+      toSha,
+      targetBranch,
+    };
 
     // 嘗試從快取讀取
     if (useCache && projectId) {
-      const cacheKey = {
-        type: 'mr_list',
-        projectId,
-        fromSha,
-        toSha,
-        targetBranch,
-      };
-
       const cached = await this.cache.get<MergeEvent[]>(cacheKey);
       if (cached) {
         logger.debug(`MR 列表快取命中: ${fromSha.substring(0, 8)}...${toSha.substring(0, 8)}`);
-        return cached;
+        // 快取是 JSON，Date 會被存成字串；還原回 Date，
+        // 否則下游的 calculateFreezeDays 會對字串呼叫 getTime() 而拋錯
+        return {
+          events: cached.map((mr) => ({ ...mr, merged_at: new Date(mr.merged_at) })),
+          listFetchFailed: false,
+        };
       }
     }
 
     // 取得兩個 commit 之間的 MR（帶錯誤處理與重試）
+    // 失敗時回空陣列，但提前 return 以跳過下方的快取寫入：
+    // 降級結果一旦進了快取，TTL 內的後續查詢都會拿到錯誤的 0 筆
     const mrs = await wrapApiCall(
       () => this.gitlabClient.getMergeRequestsBetweenCommits({
         fromSha,
@@ -257,17 +305,26 @@ export class ReleaseAnalyzer {
         retryable: true,
         maxRetries: 3,
         retryDelay: 1000,
-        fallbackValue: [], // 失敗時返回空陣列
-        errorStrategy: 'fallback',
+        errorStrategy: 'throw',
       }
-    );
+    ).catch(() => null);
+
+    if (mrs === null) {
+      // 空陣列在這裡代表「不知道」而不是「沒有」。回報失敗讓上層把
+      // 這個發布標成未評估，否則 0 MR / 0 LOC 會被算成一個有自信的 healthy。
+      return { events: [], listFetchFailed: true };
+    }
 
     // 轉換為 MergeEvent 格式
     const mergeEvents: MergeEvent[] = [];
+    let anyChangesDegraded = false;
 
     for (const mr of mrs) {
       // 取得 MR 的變更統計（帶快取）
       const changes = await this.getMRChangesWithCache(mr.iid, projectId, useCache);
+      if (changes.degraded) {
+        anyChangesDegraded = true;
+      }
 
       mergeEvents.push({
         mr_iid: mr.iid,
@@ -283,19 +340,18 @@ export class ReleaseAnalyzer {
     }
 
     // 寫入快取
-    if (useCache && projectId) {
-      const cacheKey = {
-        type: 'mr_list',
-        projectId,
-        fromSha,
-        toSha,
-        targetBranch,
-      };
+    // 任一 MR 的行數取不到就整包不快取：降級值是 0 行，
+    // 快取起來會讓錯誤的 0 在 TTL 內被當成正確結果反覆使用
+    if (useCache && projectId && !anyChangesDegraded) {
       await this.cache.set(cacheKey, mergeEvents);
       logger.debug(`MR 列表已快取: ${fromSha.substring(0, 8)}...${toSha.substring(0, 8)}`);
+    } else if (anyChangesDegraded) {
+      logger.warn(
+        `部分 MR 變更統計取得失敗，略過 MR 列表快取 (${fromSha.substring(0, 8)}...${toSha.substring(0, 8)})`
+      );
     }
 
-    return mergeEvents;
+    return { events: mergeEvents, listFetchFailed: false };
   }
 
   /**
@@ -307,11 +363,27 @@ export class ReleaseAnalyzer {
   calculateReleaseHealth(options: {
     mrCount: number;
     locChanges: number;
+    locAdditions?: number;
     thresholds: ReleaseConfiguration['analysis']['thresholds'];
   }): HealthLevel {
-    const { mrCount, thresholds } = options;
+    const { mrCount, locChanges, locAdditions, thresholds } = options;
 
-    return calculateHealthLevel(mrCount, thresholds.mr_count);
+    // calculateHealthLevel 是通用的數值分級（參數名為 mrCount，但邏輯與語意無關）
+    const levels: HealthLevel[] = [calculateHealthLevel(mrCount, thresholds.mr_count)];
+
+    // 批量優先以新增行數評估；未設定 loc_additions 時退回 loc_changes 以維持既有行為
+    if (thresholds.loc_additions) {
+      levels.push(calculateHealthLevel(locAdditions ?? locChanges, thresholds.loc_additions));
+    } else if (thresholds.loc_changes) {
+      levels.push(calculateHealthLevel(locChanges, thresholds.loc_changes));
+    }
+
+    // 取最嚴重的等級：任一維度過大都算不健康
+    const order: HealthLevel[] = ['healthy', 'warning', 'critical'];
+    return levels.reduce(
+      (worst, level) => (order.indexOf(level) > order.indexOf(worst) ? level : worst),
+      'healthy' as HealthLevel
+    );
   }
 
   /**
@@ -367,7 +439,9 @@ export class ReleaseAnalyzer {
    *
    * 使用批次並行處理提升效能
    *
-   * @param tags - 標籤列表
+   * @param tags - 要輸出的標籤（已過濾時間範圍）
+   * @param predecessorPool - 尋找前一個標籤的來源（未過濾時間範圍的完整集合）。
+   *        範圍內最舊的發布，其前序標籤通常在 since 之前，只看 tags 會誤判成無法測量。
    * @param config - 配置
    * @param projectId - 專案 ID
    * @param useCache - 是否使用快取
@@ -377,25 +451,35 @@ export class ReleaseAnalyzer {
    */
   private async buildReleases(
     tags: GitLabTag[],
+    predecessorPool: GitLabTag[],
     config: ReleaseConfiguration,
     projectId: string,
     useCache: boolean,
     onProgress?: (message: string) => void
   ): Promise<Release[]> {
+    const byDateDesc = (a: GitLabTag, b: GitLabTag): number =>
+      new Date(b.commit.committed_date).getTime() - new Date(a.commit.committed_date).getTime();
+
     // 按日期排序（新到舊）
-    const sortedTags = [...tags].sort((a, b) => {
-      const dateA = new Date(a.commit.committed_date);
-      const dateB = new Date(b.commit.committed_date);
-      return dateB.getTime() - dateA.getTime();
-    });
+    const sortedTags = [...tags].sort(byDateDesc);
+
+    // 前序查找用的完整集合；同樣新到舊，並以 tag 名稱建索引
+    const sortedPool = [...predecessorPool].sort(byDateDesc);
+    const poolIndexByName = new Map(sortedPool.map((tag, index) => [tag.name, index]));
+
+    /** 在完整集合中取比該標籤更舊的下一個標籤 */
+    const findPredecessor = (tag: GitLabTag): GitLabTag | undefined => {
+      const index = poolIndexByName.get(tag.name);
+      return index === undefined ? undefined : sortedPool[index + 1];
+    };
 
     const batchSize = BATCH_PROCESSING_CONSTANTS.SIZE;
 
     // 使用批次處理器並行處理發布
     const result = await processBatchItems(
       sortedTags,
-      async (tag, index) => {
-        const previousTag = sortedTags[index + 1];
+      async (tag) => {
+        const previousTag = findPredecessor(tag);
         return await this.buildSingleRelease(tag, previousTag, config, projectId, useCache);
       },
       {
@@ -411,6 +495,12 @@ export class ReleaseAnalyzer {
         },
       }
     );
+
+    // 被 skip 策略跳過的發布至少要留下痕跡：
+    // 靜默丟棄會讓「發布莫名少了幾筆」這類問題完全無跡可循
+    for (const { index, error } of result.failures) {
+      logger.warn(`發布 ${sortedTags[index]?.name ?? `#${index}`} 分析失敗，已跳過: ${error.message}`);
+    }
 
     // 返回成功的發布（保持原始順序）
     return result.successes;
@@ -441,7 +531,19 @@ export class ReleaseAnalyzer {
 
     // 計算發布類型與健康度
     const releaseType = this.classifyReleaseType(tag, config);
-    const healthLevel = this.calculateHealthLevelIfNeeded(releaseType, mrStats, config);
+
+    // 兩種情況下的 0 MR / 0 LOC 都是「未測量」而不是「批量很小」，
+    // 評成 healthy 會謊報健康度並拉低總體平均，因此一律不評估：
+    //   1. 沒有前一個標籤，無法界定 MR 區間（例如查詢範圍內最舊的發布）
+    //   2. MR 列表查詢失敗，空陣列代表「不知道」而不是「沒有」
+    const measurable = Boolean(previousTag) && !mrStats.listFetchFailed;
+    const healthLevel = measurable
+      ? this.calculateHealthLevelIfNeeded(releaseType, mrStats, config)
+      : null;
+
+    if (mrStats.listFetchFailed) {
+      logger.warn(`${tag.name} 的 MR 列表取得失敗，該發布標記為未評估`);
+    }
 
     // 計算時間指標
     const timeMetrics = this.calculateTimeMetrics(tagDate, previousTag, mrStats.lastMergeDate);
@@ -481,22 +583,23 @@ export class ReleaseAnalyzer {
     totalDeletions: number;
     totalChanges: number;
     lastMergeDate: Date;
+    listFetchFailed: boolean;
   }> {
     let mrList: string[] = [];
     let totalAdditions = 0;
     let totalDeletions = 0;
     let lastMergeDate = tagDate;
+    let listFetchFailed = false;
 
     if (previousTag) {
-      const mergeEvents = await this.getMergeRequestsBetweenReleases({
-        fromTag: previousTag.name,
-        toTag: tag.name,
+      const { events: mergeEvents, listFetchFailed: failed } = await this.fetchMergeEvents({
         fromSha: previousTag.commit.id,
         toSha: tag.commit.id,
         targetBranch: config.analysis.default_branch,
         projectId,
         useCache,
       });
+      listFetchFailed = failed;
 
       mrList = mergeEvents.map((mr) => mr.mr_iid.toString());
       totalAdditions = mergeEvents.reduce((sum, mr) => sum + mr.loc_additions, 0);
@@ -518,6 +621,7 @@ export class ReleaseAnalyzer {
       totalDeletions,
       totalChanges,
       lastMergeDate,
+      listFetchFailed,
     };
   }
 
@@ -528,15 +632,18 @@ export class ReleaseAnalyzer {
    */
   private calculateHealthLevelIfNeeded(
     releaseType: string,
-    mrStats: { mrList: string[]; totalChanges: number },
+    mrStats: { mrList: string[]; totalChanges: number; totalAdditions: number },
     config: ReleaseConfiguration
   ): HealthLevel | null {
-    const releaseTypeConfig = Object.values(config.release_types).find((rt) => rt.name === releaseType);
+    // releaseType 來自 classifyReleaseType，是 release_types 的 key（如 major），
+    // 不是 name 欄位（如「正式月度發布」）—— 用 name 比對永遠不會命中
+    const releaseTypeConfig = config.release_types[releaseType];
 
     if (releaseTypeConfig?.evaluate_batch_size === true) {
       return this.calculateReleaseHealth({
         mrCount: mrStats.mrList.length,
         locChanges: mrStats.totalChanges,
+        locAdditions: mrStats.totalAdditions,
         thresholds: config.analysis.thresholds,
       });
     }
@@ -695,6 +802,7 @@ export class ReleaseAnalyzer {
   ): {
     average_mr_count: number;
     average_loc_changes: number;
+    average_loc_additions: number;
     level: 'healthy' | 'warning' | 'critical';
     recommendation: string;
   } {
@@ -702,33 +810,54 @@ export class ReleaseAnalyzer {
     const evaluatedReleases = releases.filter((r) => r.health_level !== null);
 
     if (evaluatedReleases.length === 0) {
+      // 沒有可評估的發布有兩種成因，文案不應只講其中一種：
+      // 一是所有類型都關閉 evaluate_batch_size，二是有發布但都無法測量
+      // （例如範圍內最舊的發布沒有前一個標籤，或分析失敗被跳過）
+      const reason =
+        releases.length === 0
+          ? '查詢範圍內沒有符合條件的發布'
+          : '沒有可評估批量的發布（發布類型未啟用 evaluate_batch_size，或缺少前一個標籤而無法界定 MR 區間）';
+
       return {
         average_mr_count: 0,
         average_loc_changes: 0,
+        average_loc_additions: 0,
         level: 'healthy',
-        recommendation: '無需評估批量的發布記錄（所有發布類型的 evaluate_batch_size 皆為 false）',
+        recommendation: reason,
       };
     }
 
     // 計算平均值
     const totalMRs = evaluatedReleases.reduce((sum, r) => sum + r.mr_count, 0);
     const totalLOC = evaluatedReleases.reduce((sum, r) => sum + r.total_loc_changes, 0);
+    const totalAdditions = evaluatedReleases.reduce((sum, r) => sum + r.total_loc_additions, 0);
 
     const averageMRCount = totalMRs / evaluatedReleases.length;
     const averageLOCChanges = totalLOC / evaluatedReleases.length;
+    const averageLOCAdditions = totalAdditions / evaluatedReleases.length;
 
-    // 計算健康度等級（基於平均 MR 數量）
-    const level = calculateHealthLevel(
-      averageMRCount,
-      config.analysis.thresholds.mr_count
-    );
+    // 總體健康度與個別發布走同一套多維度邏輯，
+    // 否則低 MR、高新增行數的情況下個別是 critical、總體卻顯示 healthy
+    const level = this.calculateReleaseHealth({
+      mrCount: averageMRCount,
+      locChanges: averageLOCChanges,
+      locAdditions: averageLOCAdditions,
+      thresholds: config.analysis.thresholds,
+    });
 
     // 產生建議
-    const recommendation = this.generateRecommendation(level, averageMRCount, averageLOCChanges);
+    const recommendation = this.generateRecommendation(
+      level,
+      averageMRCount,
+      averageLOCChanges,
+      averageLOCAdditions,
+      config.analysis.thresholds
+    );
 
     return {
       average_mr_count: averageMRCount,
       average_loc_changes: averageLOCChanges,
+      average_loc_additions: averageLOCAdditions,
       level,
       recommendation,
     };
@@ -737,26 +866,59 @@ export class ReleaseAnalyzer {
   /**
    * 產生建議
    *
+   * 必須說明是哪個維度觸發了等級，否則使用者會誤判成因 ——
+   * 例如平均 MR 明明在健康範圍內，卻因為平均新增行數超標而顯示 warning。
+   *
    * @param level - 健康度等級
    * @param avgMRCount - 平均 MR 數量
    * @param avgLOC - 平均 LOC 變更
+   * @param avgAdditions - 平均新增行數
+   * @param thresholds - 判定用的閾值
    * @returns 建議文字
    * @private
    */
   private generateRecommendation(
     level: HealthLevel,
     avgMRCount: number,
-    avgLOC: number
+    avgLOC: number,
+    avgAdditions: number,
+    thresholds: ReleaseConfiguration['analysis']['thresholds']
   ): string {
     if (level === 'healthy') {
       return '發布批量健康，維持當前節奏';
     }
 
-    if (level === 'warning') {
-      return `發布批量偏大（平均 ${avgMRCount.toFixed(1)} 個 MR），建議增加發布頻率或減少每次發布的變更量`;
+    // 找出實際觸發此等級的維度（可能同時有多個）
+    // 門檻描述要對應實際等級：warning 是「未達 healthy 邊界」，critical 是「超過 warning」
+    const boundOf = (t: { healthy: number; warning: number }): string =>
+      level === 'critical' ? `> ${t.warning}` : `< ${t.healthy}`;
+
+    const triggers: string[] = [];
+
+    if (calculateHealthLevel(avgMRCount, thresholds.mr_count) === level) {
+      triggers.push(
+        `平均 ${avgMRCount.toFixed(1)} 個 MR（門檻 ${boundOf(thresholds.mr_count)}）`
+      );
     }
 
-    return `發布批量過大（平均 ${avgMRCount.toFixed(1)} 個 MR，${avgLOC.toFixed(0)} LOC），強烈建議增加發布頻率，避免月底集中合併大批量`;
+    const locThresholds = thresholds.loc_additions ?? thresholds.loc_changes;
+    if (locThresholds) {
+      const locValue = thresholds.loc_additions ? avgAdditions : avgLOC;
+      const locLabel = thresholds.loc_additions ? '平均新增' : '平均變更';
+      if (calculateHealthLevel(locValue, locThresholds) === level) {
+        triggers.push(
+          `${locLabel} ${locValue.toFixed(0)} 行（門檻 ${boundOf(locThresholds)}）`
+        );
+      }
+    }
+
+    const reason = triggers.length > 0 ? triggers.join('、') : `平均 ${avgMRCount.toFixed(1)} 個 MR`;
+
+    if (level === 'warning') {
+      return `發布批量偏大 — ${reason}，建議增加發布頻率或減少每次發布的變更量`;
+    }
+
+    return `發布批量過大 — ${reason}，強烈建議增加發布頻率，避免月底集中合併大批量`;
   }
 
   /**
@@ -1192,6 +1354,18 @@ export class ReleaseAnalyzer {
         continue;
       }
 
+      // freeze_days 是「最後一次合併」到「打標籤」的天數，而 lastMergeDate
+      // 預設就等於 tagDate（見 calculateTimeMetrics），只有查到 MR 才會被覆寫。
+      // 所以下面兩種情況拿到的 0 都是合成值，不是實測的當天發布：
+      //   1. 沒有前一個標籤，無法界定 MR 區間
+      //   2. 區間內沒有任何 MR —— 可能是重打標籤、從同一個 commit 切標籤，
+      //      或 MR 列表查詢失敗（失敗時同樣是 0 筆）
+      // 兩者都會被 assessFreezePeriod 判成「當天發布，測試時間不足」critical，
+      // 對使用者是假警報，因此不評估。
+      if (!release.previous_release_tag || release.mr_count === 0) {
+        continue;
+      }
+
       const freezeDays = release.freeze_days;
       totalFreezeDays += freezeDays;
 
@@ -1411,15 +1585,16 @@ export class ReleaseAnalyzer {
    * @param mrIid - MR IID
    * @param projectId - 專案 ID
    * @param useCache - 是否使用快取
-   * @returns 變更統計
+   * @returns 變更統計；degraded 為 true 表示取得失敗、行數是降級的 0，
+   *          呼叫端不應把它寫進任何快取
    * @private
    */
   private async getMRChangesWithCache(
     mrIid: number,
     projectId: string | undefined,
     useCache: boolean
-  ): Promise<{ additions: number; deletions: number }> {
-    const fallbackValue = { additions: 0, deletions: 0 };
+  ): Promise<{ additions: number; deletions: number; degraded?: boolean }> {
+    const fallbackValue = { additions: 0, deletions: 0, degraded: true };
 
     // 如果沒有 projectId，無法使用快取
     if (!projectId) {
@@ -1437,8 +1612,10 @@ export class ReleaseAnalyzer {
     }
 
     // 使用通用快取包裝
+    // 內層改為拋出，讓 withCache 跳過快取寫入，再由這裡回退到降級值：
+    // 降級值（0 行）若進了快取，TTL 內會持續謊報這個 MR 沒有任何變更
     return await this.withCache(
-      { type: 'mr_changes', projectId, mrIid },
+      { type: 'mr_changes', schemaVersion: CACHE_SCHEMA_VERSION, projectId, mrIid },
       async () => {
         return await wrapApiCall(
           () => this.gitlabClient.getMergeRequestChanges(mrIid),
@@ -1447,12 +1624,11 @@ export class ReleaseAnalyzer {
             retryable: true,
             maxRetries: 2,
             retryDelay: 500,
-            fallbackValue,
-            errorStrategy: 'fallback',
+            errorStrategy: 'throw',
           }
         );
       },
       useCache
-    );
+    ).catch(() => fallbackValue);
   }
 }

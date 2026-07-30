@@ -141,22 +141,24 @@ export class Logger {
 
   /**
    * DEBUG 等級日誌（僅在 verbose 模式下顯示）
+   *
+   * 診斷日誌一律寫 stderr，stdout 保留給命令輸出（--json 需要可解析的純淨輸出）
    */
   debug(message: string, ...args: any[]): void {
     if (!this.shouldLog(LogLevel.DEBUG)) return;
 
     const formatted = this.formatMessage(LogLevel.DEBUG, message);
-    console.debug(formatted, ...args);
+    console.error(formatted, ...args);
   }
 
   /**
-   * INFO 等級日誌
+   * INFO 等級日誌（與 debug 同樣寫 stderr）
    */
   info(message: string, ...args: any[]): void {
     if (!this.shouldLog(LogLevel.INFO)) return;
 
     const formatted = this.formatMessage(LogLevel.INFO, message);
-    console.info(formatted, ...args);
+    console.error(formatted, ...args);
   }
 
   /**

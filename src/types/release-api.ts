@@ -67,6 +67,8 @@ export interface HealthMetrics {
   batch_size: {
     average_mr_count: number;
     average_loc_changes: number;
+    /** 平均新增行數；批量健康度優先以此判定 */
+    average_loc_additions?: number;
     level: 'healthy' | 'warning' | 'critical';
     recommendation: string;
   };
@@ -126,6 +128,8 @@ export interface IReleaseAnalyzer {
   calculateReleaseHealth(options: {
     mrCount: number;
     locChanges: number;
+    /** 新增行數；提供時優先於 locChanges 用於批量評估 */
+    locAdditions?: number;
     thresholds: ReleaseConfiguration['analysis']['thresholds'];
   }): 'healthy' | 'warning' | 'critical';
 }
@@ -403,7 +407,8 @@ export interface AnalysisOutput {
     total_loc: number;
     interval_days: number | null;
     freeze_days: number;
-    health_level: 'healthy' | 'warning' | 'critical';
+    /** null 表示未評估（發布類型未啟用批量評估，或找不到前一個標籤而無法界定 MR 區間） */
+    health_level: 'healthy' | 'warning' | 'critical' | null;
   }>;
   metrics: {
     batch_size: {

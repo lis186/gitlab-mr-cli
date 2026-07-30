@@ -92,8 +92,8 @@ export type TagPattern = z.infer<typeof TagPatternSchema>;
  */
 export const ThresholdsSchema = z.object({
   mr_count: z.object({
-    healthy: z.number().int().min(0).describe('健康上限（<= 此值為健康）'),
-    warning: z.number().int().min(0).describe('警告上限（健康 < 值 <= 警告為注意）'),
+    healthy: z.number().int().min(0).describe('健康上限（< 此值為健康）'),
+    warning: z.number().int().min(0).describe('警告上限（健康 <= 值 <= 警告為注意）'),
     critical: z.number().int().min(0).describe('警戒值（> 警告值為警戒）')
   }).refine(
     (thresholds) => thresholds.healthy <= thresholds.warning,
@@ -108,6 +108,24 @@ export const ThresholdsSchema = z.object({
     warning: z.number().int().min(0),
     critical: z.number().int().min(0)
   }).optional(),
+
+  /**
+   * 以「新增行數」評估批量（優先於 loc_changes）
+   *
+   * loc_changes 是 additions + deletions，會把大規模刪除（清技術債）
+   * 判成和大批量新功能同級。要衡量批量風險應該看新增的量。
+   */
+  loc_additions: z.object({
+    healthy: z.number().int().min(0).describe('健康上限（< 此值為健康）'),
+    warning: z.number().int().min(0).describe('警告上限（健康 <= 值 <= 警告為注意）'),
+    critical: z.number().int().min(0).describe('警戒值（> 警告值為警戒）')
+  }).refine(
+    (thresholds) => thresholds.healthy <= thresholds.warning,
+    { message: 'healthy 必須 <= warning' }
+  ).refine(
+    (thresholds) => thresholds.warning <= thresholds.critical,
+    { message: 'warning 必須 <= critical' }
+  ).optional(),
 
   pipeline_success_rate: z.object({
     elite: z.number().min(0).max(1).describe('Elite 標準（如 0.95 = 95%）'),
