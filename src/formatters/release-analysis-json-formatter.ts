@@ -7,6 +7,7 @@
  */
 
 import type { Release } from '../models/release.js';
+import type { HealthMetrics } from '../types/release-api.js';
 import type { IntegrationFrequencyAnalysis } from '../services/release/integration-analyzer.js';
 import type { TrendAnalysis } from '../services/release/trend-analyzer.js';
 
@@ -27,14 +28,8 @@ export interface ReleaseAnalysisOutput {
   configName: string;
   analysisMode?: 'standard' | 'integration_only';  // 分析模式
   releases: Release[];
-  metrics: {
-    average_mr_count: number;
-    average_loc_changes: number;
-    /** 平均新增行數；批量健康度優先以此判定 */
-    average_loc_additions?: number;
-    level: 'healthy' | 'warning' | 'critical';
-    recommendation: string;
-  };
+  /** 引用單一來源，避免與表格 formatter 各自維護一份而漂移 */
+  metrics: HealthMetrics['batch_size'];
   releaseRhythm?: Array<{
     type: string;
     count: number;

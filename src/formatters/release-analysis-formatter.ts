@@ -9,6 +9,7 @@
 import Table from 'cli-table3';
 import chalk from 'chalk';
 import type { Release } from '../models/release.js';
+import type { HealthMetrics } from '../types/release-api.js';
 import type { IntegrationFrequencyAnalysis } from '../services/release/integration-analyzer.js';
 import type { TrendAnalysis } from '../services/release/trend-analyzer.js';
 
@@ -29,12 +30,12 @@ export interface ReleaseAnalysisOutput {
   configName: string;
   analysisMode?: 'standard' | 'integration_only';  // 分析模式
   releases: Release[];
-  metrics: {
-    average_mr_count: number;
-    average_loc_changes: number;
-    level: 'healthy' | 'warning' | 'critical';
-    recommendation: string;
-  };
+  /**
+   * 引用單一來源而非在這裡重複宣告一份。
+   * 先前這裡是自己寫的物件字面型別，結果 average_loc_additions 加進 analyzer
+   * 與 JSON 輸出時漏了這一份，表格因此少印判定依據的數字。
+   */
+  metrics: HealthMetrics['batch_size'];
   releaseRhythm?: Array<{
     type: string;
     count: number;
@@ -124,13 +125,22 @@ export function formatReleaseAnalysis(output: ReleaseAnalysisOutput): string {
     lines.push('');
 
     const avgMRs = output.metrics.average_mr_count.toFixed(1);
-    const avgLOC = output.metrics.average_loc_changes.toFixed(0);
+    const avgLOCChanges = output.metrics.average_loc_changes.toFixed(0);
+    const avgLOCAdditions = output.metrics.average_loc_additions?.toFixed(0);
 
     const levelColor = getLevelColor(output.metrics.level);
     const levelText = getLevelText(output.metrics.level);
 
-    lines.push(`${chalk.bold('平均 MR 數量：')} ${levelColor(avgMRs)}`);
-    lines.push(`${chalk.bold('平均 LOC 變更：')} ${levelColor(avgLOC)}`);
+    // 只有「健康度等級」上色。個別數字若也套用整體等級的顏色，會讓人以為
+    // 每個數字都落在那個等級 —— 而整體等級是各維度取最差的結果，
+    // 綠色的「平均 LOC 變更 9000」曾因此和紅色的健康度同時出現在畫面上。
+    lines.push(`${chalk.bold('平均 MR 數量：')} ${avgMRs}`);
+    if (avgLOCAdditions !== undefined) {
+      lines.push(`${chalk.bold('平均新增行數：')} ${avgLOCAdditions}`);
+    }
+    lines.push(
+      `${chalk.bold('平均 LOC 變更：')} ${avgLOCChanges} ${chalk.gray('（新增＋刪除）')}`
+    );
     lines.push(`${chalk.bold('健康度等級：')} ${levelColor(levelText)}`);
     lines.push('');
     lines.push(`${chalk.bold('建議：')} ${output.metrics.recommendation}`);
